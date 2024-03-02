@@ -1,10 +1,10 @@
-const express = require("express");
-const router = express.Router();
+const {Router} = require("express");
+const router = Router();
 const zod = require("zod");
 const jwt = require("jsonwebtoken");
 const { jwtSecretKey } = require("../config");
 
-const { User } = require("../db");
+const { User, Account } = require("../db");
 const authMiddleware = require("../middlewares/auth.middleware.js");
 const { validateMiddleware } = require("../middlewares/validate.middleware.js");
 
@@ -36,44 +36,61 @@ const updateUserBody = zod.object({
 });
 
 router.post("/signup", async (req, res) => {
-  console.log(req.body);
-  const { success, error, data } = signupBody.safeParse(req.body);
-  if (!success) {
-    return res.status(400).json({
-      route: "signup",
-      success,
-      error,
+  try {
+    console.log(req.body);
+    const { success, error, data } = signupBody.safeParse(req.body);
+    if (!success) {
+      return res.status(400).json({
+        route: "signup",
+        success,
+        error,
+      });
+    }
+    const existingUser = await User.findOne({
+      userName: req.body.userName,
     });
-  }
-  const existingUser = await User.findOne({
-    userName: req.body.userName,
-  });
 
-  if (existingUser) {
-    return res.status(411).json({
-      message: "Email already taken",
+    if (existingUser) {
+      return res.status(411).json({
+        message: "Email already taken",
+        success: false,
+      });
+    }
+    const userCreated = await User.create({
+      userName: req.body.userName,
+      password: req.body.password,
+      firstName: req.body.firstName,
+      lastName: req.body.lastName,
+    });
+    const userId = userCreated._id;
+
+    const accountDBResponse = await Account.create({
+      userId,
+      balance: parseInt(1 + Math.random() * 10000),
+    });
+    console.log(accountDBResponse)
+    if (!accountDBResponse) {
+      throw new Error('Account balance creation failed');
+    }
+    const token = jwt.sign(
+      {
+        userId,
+      },
+      jwtSecretKey
+    );
+
+    res.json({
+      message: "User created successfully",
+      token: token,
+      userCreated,
+    });
+  } catch (error) {
+    console.log("[ERROR]:", error.message);
+    res.status(500).json({
+      message: "Operation failed",
       success: false,
     });
   }
-  const userCreated = await User.create({
-    userName: req.body.userName,
-    password: req.body.password,
-    firstName: req.body.firstName,
-    lastName: req.body.lastName,
-  });
-  const userId = userCreated._id;
-  const token = jwt.sign(
-    {
-      userId,
-    },
-    jwtSecretKey
-  );
-
-  res.json({
-    message: "User created successfully",
-    token: token,
-    userCreated,
-  });
 });
 
 router.post("/signin", authMiddleware, async (req, res) => {
