@@ -10,6 +10,7 @@ try {
   connectToMongoDB(`${process.env.MONGOO_DB_URL}/${process.env.DB_NAME}`)
   .then(() => {
       app.use(cors());
+      app.use(express.urlencoded({ extended: false }));
       app.use(express.json());
     
       app.use("/api/v1", apiRouter);

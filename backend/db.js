@@ -1,8 +1,6 @@
-const mongoose =  require("mongoose");
+const mongoose = require("mongoose");
 
-// mongoose.connect('mongodb+srv://saquib_test:test_saquib@cluster0.cjmxhhn.mongodb.net/paytm');
-
-const UserSchema = mongoose.Schema({
+const UserSchema = new mongoose.Schema({
   userName: {
     type: String,
     required: true,
@@ -32,8 +30,6 @@ const UserSchema = mongoose.Schema({
   },
 });
 
-const User = mongoose.model('User', UserSchema);
+const User = mongoose.model("user", UserSchema);
 
-module.exports = {
-    User
-};
+module.exports = { User };

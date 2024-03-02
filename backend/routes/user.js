@@ -4,9 +4,9 @@ const zod = require("zod");
 const jwt = require("jsonwebtoken");
 const { jwtSecretKey } = require("../config");
 
-const { User } = require("../db.js");
+const { User } = require("../db");
 const authMiddleware = require("../middlewares/auth.middleware.js");
-const {validateMiddleware, middleware2, middleware3} = require("../middlewares/validate.middleware.js");
+const { validateMiddleware } = require("../middlewares/validate.middleware.js");
 
 const signupBody = zod.object({
   userName: zod.string().email(),
@@ -21,13 +21,22 @@ const signinBody = zod.object({
 });
 
 const updateUserBody = zod.object({
-  firstName: zod.string().min(2, "First Name should be of minimum length 2").optional(),
-  lastName: zod.string().min(2, "Last Name should be of minimum length 2").optional(),
-  password: zod.string().min(6, "Password should be of minimum length 6").optional(),
+  firstName: zod
+    .string()
+    .min(2, "First Name should be of minimum length 2")
+    .optional(),
+  lastName: zod
+    .string()
+    .min(2, "Last Name should be of minimum length 2")
+    .optional(),
+  password: zod
+    .string()
+    .min(6, "Password should be of minimum length 6")
+    .optional(),
 });
 
 router.post("/signup", async (req, res) => {
-  console.log(`Body, ${req.body}`);
+  console.log(req.body);
   const { success, error, data } = signupBody.safeParse(req.body);
   if (!success) {
     return res.status(400).json({
@@ -67,24 +76,14 @@ router.post("/signup", async (req, res) => {
   });
 });
 
-/*  
-router.post("/signin", validateMiddleware(signinBody), authMiddleware, async (req, res) => {
-  console.log(
-    "\n",
-    "Directory : ",
-    __dirname,
-    "\n",
-    "FileName: ",
-    __filename,
-    "\n"
-  );
-  // const { success, error, data } = signinBody.safeParse(req.body);
-  // if (!success) {
-  //   return res.status(411).json({
-  //     success,
-  //     error,
-  //   });
-  // }
+router.post("/signin", authMiddleware, async (req, res) => {
+  const { success, error, data } = signinBody.safeParse(req.body);
+  if (!success) {
+    return res.status(411).json({
+      success,
+      error,
+    });
+  }
   const existingUser = await User.findById(req.userId);
 
   console.log(existingUser);
@@ -117,14 +116,89 @@ router.post("/signin", validateMiddleware(signinBody), authMiddleware, async (re
   });
 });
 
-router.put("/", validateMiddleware(updateUserBody), authMiddleware, async (req, res) => {
-  res.status(200).json({
-    msg: 'Updated successfully',
-    success: true,
-  })
-});
-*/
-router.get('/', validateMiddleware(updateUserBody), middleware2, middleware3)
+router.put(
+  "/",
+  (req, res, next) => {
+    const { success, error, data } = updateUserBody.safeParse(req.body);
+    if (!success) {
+      return res.status(411).json({
+        msg: "Error while updating information",
+        success,
+        error,
+      });
+    }
+    next();
+  },
+  authMiddleware,
+  async (req, res) => {
+    const { userId, body } = req;
+    console.log(userId, body);
+    const existingUser = await User.findById({ _id: userId });
+    // console.log(existingUser)
+    if (!existingUser) {
+      res.status(404).json({
+        msg: "User not found",
+        success: false,
+      });
+    }
+    const updatedUser = await User.updateOne(
+      {
+        _id: userId,
+      },
+      req.body
+    );
+    if (!updatedUser) {
+      return res.status(404).json({
+        msg: "Update operation failed",
+        status: false,
+        route: "update",
+      });
+    }
+    return res.status(200).json({
+      msg: "Updated successfully",
+      success: true,
+    });
+  }
+);
+
+router.get(
+  "/bulk",
+  (req, res, next) => {
+    const { success, error, data } = updateUserBody.safeParse(req.body);
+    if (!success) {
+      return res.status(411).json({
+        msg: "Error while updating information",
+        success,
+        error,
+      });
+    }
+    next();
+  },
+  async (req, res) => {
+    console.log(req.query);
+    const filter = req.query.filter || "";
+    const userList = await User.find({
+      $or: [
+        {
+          firstName: {
+            $regex: filter,
+          },
+        },
+        {
+          lastName: {
+            $regex: filter,
+          },
+        },
+      ],
+    });
+    console.log("List=>", userList);
+    res.status(200).json({
+      msg: "Success",
+      route: "bulk",
+      success: true,
+    });
+  }
+);
 
 module.exports = {
   userRouter: router,
